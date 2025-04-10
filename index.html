@@ -1,0 +1,387 @@
+<!doctype html>
+<html>
+
+<head>
+    <script src="https://unpkg.com/vue@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/brython@3/brython.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/brython@3/brython_stdlib.js"></script>
+    <link rel="stylesheet" href="lib/style.css">
+    <script src="lib/script.js"></script>
+</head>
+
+<body onload="brython(1)">
+    <div id="app">
+        <!-- HOMEPAGE -->
+        <div v-if="page==0">
+            <input type="button" value="Log In" @click="loginPage"> <!-- redirect to Log In form--> 
+            <input type="button" value="Sign up" @click="signupPage"><!-- redirect to Signup form-->
+            <center>
+                <h1>Conference Schedule</h1>
+                <table>
+                    <tr>
+                        <th>Day</th>
+                        <th>Time</th>
+                        <th>Topic</th>
+                    </tr>
+                    <tr v-for="(conf, index) in conferenceList" :key="index">
+                        <td>{{conf.day}}</td>
+                        <td>{{conf.time}}</td>
+                        <td>{{conf.topic}}</td>
+                    </tr>
+                </table>
+            </center>
+        </div>
+
+        <!-- LOGIN PAGE -->
+        <div v-if="page==1">
+            <form>
+                <center>
+                    <h1>Log In Form</h1>
+                    <label>Name: </label>
+                    <input type="text" v-model="username" required>
+                    <br>
+                    <label>Password: </label>
+                    <input type="password" v-model="loginPass" :type="showPass ? 'text' : 'password'" required>
+                    <label><input type="checkbox" v-model="showPass">Show password</label>
+                    <br><br>
+                    <input type="button" value="Submit" @click="loginUser">
+                    <input type="button" value="Cancel" @click="homePage">
+                    <p v-if="message">{{ message }}</p>
+                    <p>Not a member? <a href="#" @click="signupPage">Sign up</a></p>
+                </center>
+            </form>
+        </div>
+
+        <!-- SIGNUP PAGE -->
+        <div v-if="page==2">
+            <form>
+                <center>
+                    <h1>Sign up Page</h1>
+                    <label>Name: </label>
+                    <input type="text" v-model="username">
+                    <br>
+                    <label>Password: </label>
+                    <input type="password" v-model="password" :type="showPass ? 'text' : 'password'">
+                    <br>
+                    <label>Confirm Password: </label>
+                    <input type="password" v-model="confirmPass" :type="showPass ? 'text' : 'password'">
+                    <label><input type="checkbox" v-model="showPass">Show password</label>
+                    <br><br>
+                    <label>Time Zone:
+                        <select v-model="timezone" required>
+                            <option value="NZ">New Zealand (NZ)</option>
+                            <option value="AEST">Australian Eastern Standard Time (AEST)</option>
+                        </select>
+                    </label>
+                    <br><br>
+                    <input type="button" value="Submit" @click="signUp">
+                    <input type="button" value="Cancel" @click="homePage">
+                    <p v-if="message">{{ message }}</p>
+                    <p>Already a user? <a href="#" @click="loginPage">Log in</a></p>
+                </center>
+            </form>
+        </div>
+
+        <!-- Personal Page -->
+        <div v-if="page === 'personalSchedule'">
+            <input type="button" value="Log out" @click="logoutUser">
+            <input type="button" value="Conference Schedule" @click="page='conferenceSchedule'">
+            <input type="button" value="Browse Users" @click="page='userList'">
+            <h1>Personal Schedule</h1>
+            Day:
+            <select v-model="blockDaySelected">
+                <option v-for="i in daysList" :key="i">{{i}}</option>
+            </select>
+            Time:
+            <select v-model="blockTimeSelected">
+                <option v-for="i in timeList" :key="i">{{i}}</option>
+            </select>
+            <input type="button" value="Block time" @click="blockTime">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Day</th>
+                        <th>Time</th>
+                        <th>Topic</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="(schd, index) in personalSchedule" :key="index">
+                        <td>{{ schd.day }}</td>
+                        <td>{{ schd.time }}</td>
+                        <td><i>{{ schd.topic }}</i></td>
+                        <td><input type="button" value="Remove" @click="removeTalk(index)"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- CONFERENCE SCHEDULE PAGE -->
+        <div v-if="page === 'conferenceSchedule'">
+            <input type="button" value="Personal Schedule" @click="page='personalSchedule'">
+            <h2>Conference Schedule</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Day</th>
+                        <th>Time</th>
+                        <th>Topic</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="(conf, index) in conferenceList" :key="index">
+                        <td>{{ conf.day }}</td>
+                        <td>{{ conf.time }}</td>
+                        <td><i>{{ conf.topic }}</i></td>
+                        <td><input type="button" value="Add" @click="addTalkAndRedirect(index)"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- USER LIST PAGE -->
+        <div v-if="page === 'userList'">
+            <input type="button" value="Personal Schedule" @click="page='personalSchedule'">
+            <h2>Users</h2>
+            <ul>
+                <li v-for="user in participants" :key="user.name">
+                    {{ user.name }} - Available: {{ user.available.join(', ') }}
+                    <input type="button" value="Request Meeting" @click="requestMeetingWith(user.name)">
+                </li>
+            </ul>
+        </div>
+
+        <!-- REQUEST MEETING PAGE -->
+        <div v-if="page === 'requestMeeting'">
+            <h2>Request Meeting</h2>
+            <form @submit.prevent="onFindMeetingTimes">
+                <label>Select Participants:</label>
+                <select multiple v-model="selectedParticipants">
+                    <option v-for="participant in participants" :value="participant.name">{{ participant.name }}</option>
+                </select>
+                <input type="submit" value="Find Meeting Times">
+                
+            </form>
+        </div>
+
+        <!-- POSSIBLE MEETING TIMES PAGE -->
+        <div v-if="page === 'possibleMeetingTimes'">
+            <h2>Possible Meeting Times</h2>
+            <input type="button" value="Cancel" @click="page='userList'">
+            <ul>
+                <li v-for="time in meetingTimes" :key="time">
+                    {{ time }}
+                    <input type="button" value="Select Time" @click="selectMeetingTime(time)">
+                    
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Python and Vue code here -->
+    <script type="text/python">
+        from browser import window, ajax
+        import json
+        import urllib.request
+
+        data = [
+            {"name": "Anh Nguyen", "password": "1254", "timezone": "NZ", "available": ["Monday 09:00AM", "Tuesday 10:00AM"]},
+            {"name": "Billie Bright", "password": "1344", "timezone": "NZ", "available": ["Monday 10:00AM", "Tuesday 10:00AM", "Tuesday 11:00AM"]},
+            {"name": "Charlie Chaplin", "password": "1394", "timezone": "NZ", "available": ["Tuesday 11:00AM", "Wednesday 16:00AM"]},
+            {"name": "Danya Saveall", "password": "1337", "timezone": "NZ", "available": ["Tuesday 11:00AM", "Wednesday 14:00AM"]},
+            {"name": "Elsbeth West", "password": "8252", "timezone": "NZ", "available": ["Wednesday 11:00AM", "Wednesday 12:00AM"]}
+        ]
+
+        def loginPage(ev):
+            print("you're in the Login page")
+            app.page = 1
+
+        def signupPage(ev):
+            print("you're in the Signup page")
+            app.page = 2
+
+        def homePage(ev):
+            print("you're in the Homepage")
+            app.page = 0
+        
+        #action when user log in
+        def loginUser(ev):
+            urlUser = 'https://api.npoint.io/8d80b39b6c5897b03cb0'
+            if not app.username:
+                app.message = 'Please enter your username'
+                print("Name is empty")
+            elif not app.loginPass:
+                app.message = 'Please enter your password'
+                print("Password is empty")
+            else:
+                if app.username in app.users and app.users[app.username] == app.loginPass:
+                    print("Correct Username and Password")
+                    print("Log in Successfully")
+                    app.page = 'personalSchedule'
+                else:
+                    try:
+                        url_User = urllib.request.urlopen(urlUser).read()
+                        user_data_list = json.loads(url_User)
+                        for user_data in user_data_list:
+                            user_name = user_data.get("name")
+                            user_pass = user_data.get("password")
+
+                            if app.username == user_name and app.loginPass == user_pass:
+                                print("Correct Username and Password")
+                                print("Log in Successfully")
+                                app.page = 'personalSchedule'
+                                app.currentUser = user_data
+                                break
+                        else:
+                            app.message = 'Incorrect Username or Password'
+                            print("Incorrect Username or Password")
+                    except Exception as e:
+                        app.message = 'An error occurred while you were trying to log in'
+                        print(f"An error occurred: {e}")
+                        
+        # action when user Sign up
+        def signUp(ev):
+            if not app.username:
+                app.message = 'Please enter your username'
+                print("Name is empty")
+            elif not app.password:
+                app.message = 'Please enter your password'
+                print("Password is empty")
+            elif not app.confirmPass:
+                app.message = 'Please re-enter your password'
+                print("User did not re-enter password")
+            else:
+                if app.password == app.confirmPass:
+                    app.users[app.username] = app.password
+                    app.message = 'Account created Successfully'
+                    print("Password match")
+                    print("Account created Successfully")
+                    app.page = 1
+                else:
+                    app.message = 'Password does not match'
+                    print("Password does not match")
+        
+        def logoutUser(ev):
+            app.page = 0
+            print("Log out Successfully")
+
+        def addTalkAndRedirect(index):
+            addTalk(index)
+            app.page = 'personalSchedule'
+
+        def addTalk(index):
+            talk = app.conferenceList[index]
+            app.personalSchedule.append(talk)
+            if app.currentUser:
+                app.currentUser['available'].append(f"{talk['day']} {talk['time']}")
+            app.page = 'personalSchedule'
+
+        def removeTalk(index):
+            talk = app.personalSchedule.pop(index)
+            if app.currentUser:
+                app.currentUser['available'].remove(f"{talk['day']} {talk['time']}")
+
+        def blockTime(ev):
+            blockedTime = {"day": app.blockDaySelected, "time": f"{app.blockTimeSelected}:00", "topic": 'Not available'}
+            app.personalSchedule.append(blockedTime)
+            if app.currentUser:
+                app.currentUser['available'].append(f"{app.blockDaySelected} {app.blockTimeSelected}:00")
+            app.page = 'personalSchedule'
+
+        def onFindMeetingTimes(ev):
+            app.meetingTimes = find_common_times(app.selectedParticipants)
+            app.page = 'possibleMeetingTimes'
+            print(" In find Meeting")
+
+        def find_common_times(selected_participants):
+            available_times = None
+            for participant in app.participants:
+                if participant['name'] in selected_participants:
+                    participant_times = set(participant['available'])
+                    if available_times is None:
+                        available_times = participant_times
+                    else:
+                        available_times &= participant_times
+            return list(available_times) if available_times else []
+
+        def selectMeetingTime(time):
+            meeting = {'day': 'Meeting', 'time': time, 'topic': f"Meeting with {', '.join(app.selectedParticipants)}"}
+            app.personalSchedule.append(meeting)
+            for participant in app.participants:
+                if participant['name'] in app.selectedParticipants:
+                    participant['available'].remove(time)
+            app.page = 'personalSchedule'
+
+        def requestMeetingWith(name):
+            if name not in app.selectedParticipants:
+                app.selectedParticipants.append(name)
+            app.meetingTimes = find_common_times([name])
+            app.page = 'possibleMeetingTimes'
+
+        def joinMeeting(ev):
+            window.alert("The meeting will be automatically recorded")
+
+        app = window.Vue.new({
+            'el': '#app',
+            'data': {
+                'username': '',
+                'loginPass': '',
+                'page': 0,
+                'password': '',
+                'confirmPass': '',
+                'message': '',
+                'showPass': False,
+                'timezone': 'NZ',
+                'conferenceList': [
+                    {"day": "Mon", "time": "09:00", "topic": "Welcome and opening"},
+                    {"day": "Mon", "time": "10:00", "topic": "Finding yourself"},
+                    {"day": "Mon", "time": "11:00", "topic": "Leading Teams"},
+                    {"day": "Mon", "time": "13:00", "topic": "Inspiring Teams"},
+                    {"day": "Tue", "time": "10:00", "topic": "Networking over coffee"},
+                    {"day": "Tue", "time": "11:00", "topic": "Basics of Effective writing"},
+                    {"day": "Tue", "time": "12:00", "topic": "Effective writing"},
+                    {"day": "Tue", "time": "13:00", "topic": "Advanced Effective writing"},
+                    {"day": "Wed", "time": "10:00", "topic": "Managing meetings"},
+                    {"day": "Wed", "time": "11:00", "topic": "Preparing for meetings"},
+                    {"day": "Wed", "time": "12:00", "topic": "Chairing meetings"},
+                    {"day": "Wed", "time": "14:00", "topic": "Post-meeting followup"}
+                ],
+                'personalSchedule': [],
+                'selectedParticipants': [],
+                'blockDaySelected': '',
+                'blockTimeSelected': '',
+                'users': {},
+                'participants': data,
+                'meetingTimes': [],
+                'currentUser': None,
+                'scheduledMeetings': []
+            },
+            'methods': {
+                'loginPage': loginPage,
+                'signupPage': signupPage,
+                'homePage': homePage,
+                'loginUser': loginUser,
+                'signUp': signUp,
+                'logoutUser': logoutUser,
+                'addTalkAndRedirect': addTalkAndRedirect,
+                'addTalk': addTalk,
+                'removeTalk': removeTalk,
+                'blockTime': blockTime,
+                'onFindMeetingTimes': onFindMeetingTimes,
+                'selectMeetingTime': selectMeetingTime,
+                'requestMeetingWith': requestMeetingWith,
+                'joinMeeting': joinMeeting
+            }
+        })
+
+        app.conference = []
+        app.personalSchedule = []
+        app.talksList = []
+        app.daysList = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+        app.timeList = [9, 10, 11, 12, 13, 14, 15, 16]
+    </script>
+</body>
+
+</html>
