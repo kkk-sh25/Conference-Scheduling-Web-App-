@@ -27,8 +27,11 @@ Supported Browsers: Chrome, Firefox, Safari (mobile-friendly).
 
 Technology Stack:
 Frontend: HTML5, CSS3, Vue.js
+
 Logic: Python (for client-side functionality within Vue.js framework)
+
 Data Access: HTTP GET requests to provided server endpoints
+
 Agile Development: Functionality delivered incrementally via weekly sprints, with Trello used for product backlog and scrum board.
 
 
